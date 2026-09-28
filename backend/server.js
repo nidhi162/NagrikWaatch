@@ -3,9 +3,16 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 
+const authRoutes = require("./routes/authRoutes");
+const issueRoutes = require("./routes/issueRoutes");
+
 const app = express();
 
-const PORT = process.env.PORT || 5000;
+// ===============================
+// CONFIG
+// ===============================
+
+const PORT = process.env.PORT || 10000;
 
 // ===============================
 // MIDDLEWARE
@@ -13,42 +20,79 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // ===============================
-// TEST ROUTE
+// HEALTH CHECK
 // ===============================
 
 app.get("/", (req, res) => {
-  res.status(200).json({
-    success: true,
+  res.json({
     message: "NagrikWaatch API is running 🚀",
+    status: "online",
   });
 });
 
 // ===============================
-// AUTH ROUTES
+// ROUTES
 // ===============================
-
-const authRoutes = require("./routes/authRoutes");
 
 app.use("/auth", authRoutes);
+app.use("/issues", issueRoutes);
 
 // ===============================
-// MONGODB + SERVER
+// 404 HANDLER
+// ===============================
+
+app.use((req, res) => {
+  res.status(404).json({
+    message: "Route not found",
+    path: req.originalUrl,
+  });
+});
+
+// ===============================
+// START SERVER
 // ===============================
 
 async function startServer() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
+    const mongoUri = process.env.MONGO_URI;
+
+    // Safe diagnostic — does NOT print your password
+    console.log("MONGO_URI exists:", !!mongoUri);
+
+    if (!mongoUri) {
+      throw new Error("MONGO_URI environment variable is missing");
+    }
+
+    console.log(
+      "MONGO_URI starts with:",
+      mongoUri.substring(0, 15)
+    );
+
+    // Check MongoDB URI format
+    if (
+      !mongoUri.startsWith("mongodb://") &&
+      !mongoUri.startsWith("mongodb+srv://")
+    ) {
+      throw new Error(
+        "MONGO_URI must start with mongodb:// or mongodb+srv://"
+      );
+    }
+
+    await mongoose.connect(mongoUri);
 
     console.log("MongoDB connected successfully ✅");
 
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
     });
   } catch (error) {
     console.error("MongoDB connection failed ❌");
     console.error(error.message);
+
+    process.exit(1);
   }
 }
 
